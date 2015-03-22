@@ -135,7 +135,7 @@
     var defer;
     defer = q.defer();
     twitterRestClient.statusesUpdateWithMedia({
-      'status': 'Testing a post',
+      'status': 'Testing a post from a Tessel',
       'media[]': '/file/path.jpg',
       'media_data[]': data
     }, function(err, res) {
