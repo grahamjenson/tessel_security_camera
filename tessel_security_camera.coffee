@@ -1,10 +1,6 @@
 tessel = require('tessel')
 q = require 'q'
 
-Twitter = require('node-twitter');
-keys = require './twitter_keys.json'
-twitterRestClient = new Twitter.RestClient(keys.key, keys.secret, keys.akey, keys.asecret);
-
 
 #promisify
 
@@ -63,7 +59,7 @@ ambient = require('ambient-attx4').use(tessel.port['B']);
 get_light_and_sound = ->
   q.all([promisify(ambient.getLightLevel, ambient),promisify(ambient.getSoundLevel, ambient)])
 
-is_light_sound_changing = (light_sensitivity=0.0005, sound_sensitivity=0.001) ->
+is_light_sound_changing = (light_sensitivity=0.001, sound_sensitivity=0.005) ->
   l1 = null
   l2 = null
   s1 = null
@@ -91,40 +87,38 @@ camera = require('camera-vc0706').use(tessel.port['A']);
 
 
 turn_camera_on = ->
+  console.log "Turn Camera On"
   camera_ready_defer = q.defer()
   camera.on('ready', ->
-    console.log "ready"
+    console.log "Camera On"
     camera_ready_defer.resolve(true)
   )
   return camera_ready_defer.promise
 
 
-tweet_a_picutre = (data) ->
-  defer = q.defer()
-  twitterRestClient.statusesUpdateWithMedia({'status': 'Testing a post from a Tessel', 'media[]': '/file/path.jpg', 'media_data[]': data}, (err, res) ->
-    defer.reject( err ) if err
-    res
-  )
-  defer.promise
-
 take_a_picutre = ->
-  console.log "Turn Camera On"
-  turn_camera_on()
-  .then( ->
-    console.log "Camera On"
-    promisify(camera.takePicture, camera)
-  )
+  promisify(camera.takePicture, camera)
   .then( (image) ->
     console.log "Image Taken:", image
-    tweet_a_picutre(image)
+    name = "picture-#{Date.now()}.jpg"
+    console.log('Picture saving as', name, '...');
+    process.sendfile(name, image);
+    console.log('done.');
   )
 
-take_a_picutre().catch((e) -> console.log e; throw e)
 # Security Loop
-
-# setInterval( ->
-#   take_a_picutre().then( (name) ->
-#     console.log name
-#   )
-# , 10000)
-
+turn_camera_on()
+.then( ->
+  setInterval( ->
+    q.all([is_light_sound_changing(), is_burning(), is_moving()])
+    .spread( (lsc, burning, moving) ->
+      if lsc or burning or moving
+        console.log "Light or Sound Changing" if lsc
+        console.log "Burning" if burning
+        console.log "Moving" if moving
+        take_a_picutre()
+      else
+        console.log "Nothing is happening"
+    )
+  , 10000)
+)
